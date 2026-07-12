@@ -66,7 +66,7 @@ app.get('/provinces', (req, res) => {
 app.get('/provinces/:id', (req, res) => {
   const province = provinces.find(p => p.id === Number(req.params.id));
   if (!province) {
-    return res.status(404).json({ error: `Province with id ${req.params.id} not found.` });
+    return res.status(404).json({ error: "Province not found" });
   }
   res.json(fmtProvince(province));
 });
@@ -82,7 +82,7 @@ app.get('/districts', (req, res) => {
 app.get('/districts/:id', (req, res) => {
   const district = districts.find(d => d.id === Number(req.params.id));
   if (!district) {
-    return res.status(404).json({ error: `District with id ${req.params.id} not found.` });
+    return res.status(404).json({ error: "District not found" });
   }
   res.json(fmtDistrict(district));
 });
@@ -98,7 +98,7 @@ app.get('/stations', (req, res) => {
 app.get('/stations/:id', (req, res) => {
   const station = stations.find(s => s.id === Number(req.params.id));
   if (!station) {
-    return res.status(404).json({ error: `Station with id ${req.params.id} not found.` });
+    return res.status(404).json({ error: "Station not found" });
   }
   res.json(fmtStation(station));
 });
@@ -115,7 +115,7 @@ app.get('/vehicles/:id', (req, res) => {
   const id      = Number(req.params.id);
   const vehicle = vehicles.find(v => v.id === id);
   if (!vehicle) {
-    return res.status(404).json({ error: `Vehicle with id ${req.params.id} not found.` });
+    return res.status(404).json({ error: "Vehicle not found" });
   }
 
   // Find the most recent ping for this vehicle
@@ -134,7 +134,7 @@ app.get('/vehicles/:id/pings', (req, res) => {
   const id      = Number(req.params.id);
   const vehicle = vehicles.find(v => v.id === id);
   if (!vehicle) {
-    return res.status(404).json({ error: `Vehicle with id ${req.params.id} not found.` });
+    return res.status(404).json({ error: "Vehicle not found" });
   }
   res.json(pings.filter(p => p.vehicle_id === id).map(fmtPing));
 });
@@ -144,7 +144,7 @@ app.post('/vehicles/:id/pings', (req, res) => {
   const id      = Number(req.params.id);
   const vehicle = vehicles.find(v => v.id === id);
   if (!vehicle) {
-    return res.status(404).json({ error: `Vehicle with id ${req.params.id} not found.` });
+    return res.status(404).json({ error: "Vehicle not found" });
   }
 
   const { latitude, longitude, speed } = req.body;
@@ -175,7 +175,7 @@ app.get('/vehicles/:id/last-position', (req, res) => {
   const id      = Number(req.params.id);
   const vehicle = vehicles.find(v => v.id === id);
   if (!vehicle) {
-    return res.status(404).json({ error: `Vehicle with id ${req.params.id} not found.` });
+    return res.status(404).json({ error: "Vehicle not found" });
   }
 
   const lastPing = pings
@@ -183,7 +183,7 @@ app.get('/vehicles/:id/last-position', (req, res) => {
     .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
 
   if (!lastPing) {
-    return res.status(404).json({ error: `No position data found for vehicle ${req.params.id}.` });
+    return res.status(404).json({ error: "Position data not found" });
   }
 
   res.json({
