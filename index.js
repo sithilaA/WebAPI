@@ -1,5 +1,4 @@
 const express = require('express');
-const path    = require('path');
 
 // ── Load seed data into memory once at startup ────────────────────────────────
 const seed = require('./seed_data.json');
@@ -10,9 +9,46 @@ const stations  = seed.stations;    // [{ id, name, district_id }]
 const vehicles  = seed.vehicles;    // [{ id, registration_number, device_id, station_id }]
 const pings     = seed.pings;       // [{ id, vehicle_id, latitude, longitude, timestamp }]
 
+// ── Shape-mapping helpers (seed field names → response field names) ────────────
+
+const fmtProvince = p => ({
+  province_id : p.id,
+  name        : p.name,
+});
+
+const fmtDistrict = d => ({
+  district_id : d.id,
+  name        : d.name,
+  province_id : d.province_id,
+});
+
+const fmtStation = s => ({
+  station_id  : s.id,
+  name        : s.name,
+  district_id : s.district_id,
+});
+
+const fmtVehicle = v => ({
+  vehicle_id  : v.id,
+  reg_number  : v.registration_number,
+  device_id   : v.device_id,
+  station_id  : v.station_id,
+});
+
+const fmtPing = p => ({
+  ping_id    : p.id,
+  vehicle_id : p.vehicle_id,
+  timestamp  : p.timestamp,
+  lat        : p.latitude,
+  lng        : p.longitude,
+  speed      : p.speed ?? null,
+});
+
 // ── App setup ─────────────────────────────────────────────────────────────────
 const app  = express();
 const PORT = process.env.PORT || 3000;
+
+app.use(express.json());
 
 // ── Health check ──────────────────────────────────────────────────────────────
 app.get('/', (req, res) => {
@@ -21,81 +57,142 @@ app.get('/', (req, res) => {
 
 // ── Provinces ─────────────────────────────────────────────────────────────────
 
-// GET /provinces  – list all provinces
+// GET /provinces  -> [{ province_id, name }]
 app.get('/provinces', (req, res) => {
-  res.json(provinces);
+  res.json(provinces.map(fmtProvince));
 });
 
-// GET /provinces/:provinceId  – single province
-app.get('/provinces/:provinceId', (req, res) => {
-  const id       = Number(req.params.provinceId);
-  const province = provinces.find(p => p.id === id);
+// GET /provinces/:id  -> { province_id, name }
+app.get('/provinces/:id', (req, res) => {
+  const province = provinces.find(p => p.id === Number(req.params.id));
   if (!province) {
-    return res.status(404).json({ error: `Province with id ${id} not found.` });
+    return res.status(404).json({ error: `Province with id ${req.params.id} not found.` });
   }
-  res.json(province);
+  res.json(fmtProvince(province));
 });
 
 // ── Districts ─────────────────────────────────────────────────────────────────
 
-// GET /districts  – list all districts
+// GET /districts  -> [{ district_id, name, province_id }]
 app.get('/districts', (req, res) => {
-  res.json(districts);
+  res.json(districts.map(fmtDistrict));
 });
 
-// GET /districts/:districtId  – single district
-app.get('/districts/:districtId', (req, res) => {
-  const id       = Number(req.params.districtId);
-  const district = districts.find(d => d.id === id);
+// GET /districts/:id  -> { district_id, name, province_id }
+app.get('/districts/:id', (req, res) => {
+  const district = districts.find(d => d.id === Number(req.params.id));
   if (!district) {
-    return res.status(404).json({ error: `District with id ${id} not found.` });
+    return res.status(404).json({ error: `District with id ${req.params.id} not found.` });
   }
-  res.json(district);
+  res.json(fmtDistrict(district));
 });
 
 // ── Stations ──────────────────────────────────────────────────────────────────
 
-// GET /stations  – list all stations
+// GET /stations  -> [{ station_id, name, district_id }]
 app.get('/stations', (req, res) => {
-  res.json(stations);
+  res.json(stations.map(fmtStation));
 });
 
-// GET /stations/:stationId  – single station
-app.get('/stations/:stationId', (req, res) => {
-  const id      = Number(req.params.stationId);
-  const station = stations.find(s => s.id === id);
+// GET /stations/:id  -> { station_id, name, district_id }
+app.get('/stations/:id', (req, res) => {
+  const station = stations.find(s => s.id === Number(req.params.id));
   if (!station) {
-    return res.status(404).json({ error: `Station with id ${id} not found.` });
+    return res.status(404).json({ error: `Station with id ${req.params.id} not found.` });
   }
-  res.json(station);
+  res.json(fmtStation(station));
 });
 
 // ── Vehicles ──────────────────────────────────────────────────────────────────
 
-// GET /vehicles  – list all vehicles
+// GET /vehicles  -> [{ vehicle_id, reg_number, device_id, station_id }]
 app.get('/vehicles', (req, res) => {
-  res.json(vehicles);
+  res.json(vehicles.map(fmtVehicle));
 });
 
-// GET /vehicles/:vehicleId  – single vehicle
-app.get('/vehicles/:vehicleId', (req, res) => {
-  const id      = Number(req.params.vehicleId);
+// GET /vehicles/:id  -> { vehicle_id, reg_number, device_id, station_id, last_ping }
+app.get('/vehicles/:id', (req, res) => {
+  const id      = Number(req.params.id);
   const vehicle = vehicles.find(v => v.id === id);
   if (!vehicle) {
-    return res.status(404).json({ error: `Vehicle with id ${id} not found.` });
+    return res.status(404).json({ error: `Vehicle with id ${req.params.id} not found.` });
   }
-  res.json(vehicle);
+
+  // Find the most recent ping for this vehicle
+  const lastPing = pings
+    .filter(p => p.vehicle_id === id)
+    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0] ?? null;
+
+  res.json({
+    ...fmtVehicle(vehicle),
+    last_ping: lastPing ? fmtPing(lastPing) : null,
+  });
 });
 
-// GET /vehicles/:vehicleId/pings  – all pings for a vehicle
-app.get('/vehicles/:vehicleId/pings', (req, res) => {
-  const id      = Number(req.params.vehicleId);
+// GET /vehicles/:id/pings  -> [{ ping_id, vehicle_id, timestamp, lat, lng, speed }]
+app.get('/vehicles/:id/pings', (req, res) => {
+  const id      = Number(req.params.id);
   const vehicle = vehicles.find(v => v.id === id);
   if (!vehicle) {
-    return res.status(404).json({ error: `Vehicle with id ${id} not found.` });
+    return res.status(404).json({ error: `Vehicle with id ${req.params.id} not found.` });
   }
-  const vehiclePings = pings.filter(p => p.vehicle_id === id);
-  res.json(vehiclePings);
+  res.json(pings.filter(p => p.vehicle_id === id).map(fmtPing));
+});
+
+// GET /vehicles/:id/last-position  -> { vehicle_id, timestamp, lat, lng, speed }
+app.post('/vehicles/:id/pings', (req, res) => {
+  const id      = Number(req.params.id);
+  const vehicle = vehicles.find(v => v.id === id);
+  if (!vehicle) {
+    return res.status(404).json({ error: `Vehicle with id ${req.params.id} not found.` });
+  }
+
+  const { latitude, longitude, speed } = req.body;
+  if (latitude === undefined || longitude === undefined) {
+    return res.status(400).json({ error: "latitude and longitude are required" });
+  }
+
+  const newPing = {
+    id: pings.length > 0 ? Math.max(...pings.map(p => p.id)) + 1 : 1,
+    vehicle_id: id,
+    latitude: Number(latitude),
+    longitude: Number(longitude),
+    speed: speed !== undefined ? Number(speed) : null,
+    timestamp: new Date().toISOString()
+  };
+
+  pings.push(newPing);
+
+  const fs = require('fs');
+  const path = require('path');
+  fs.writeFileSync(path.join(__dirname, 'seed_data.json'), JSON.stringify(seed, null, 2));
+
+  res.status(201).json(fmtPing(newPing));
+});
+
+// GET /vehicles/:id/last-position  -> { vehicle_id, timestamp, lat, lng, speed }
+app.get('/vehicles/:id/last-position', (req, res) => {
+  const id      = Number(req.params.id);
+  const vehicle = vehicles.find(v => v.id === id);
+  if (!vehicle) {
+    return res.status(404).json({ error: `Vehicle with id ${req.params.id} not found.` });
+  }
+
+  const lastPing = pings
+    .filter(p => p.vehicle_id === id)
+    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
+
+  if (!lastPing) {
+    return res.status(404).json({ error: `No position data found for vehicle ${req.params.id}.` });
+  }
+
+  res.json({
+    vehicle_id : lastPing.vehicle_id,
+    timestamp  : lastPing.timestamp,
+    lat        : lastPing.latitude,
+    lng        : lastPing.longitude,
+    speed      : lastPing.speed ?? null,
+  });
 });
 
 // ── Start server ──────────────────────────────────────────────────────────────
